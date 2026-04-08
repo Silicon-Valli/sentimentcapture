@@ -50,6 +50,10 @@ Reddit data comes from their public JSON API — `reddit.com/search.json?q=...&t
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Silicon-Valli/sentimentcapture)
 
+No terminal? One click.
+
+Click the button, sign into Vercel with GitHub, and you're live. Takes about 2 minutes.
+
 ### Fork and deploy in 5 minutes
 
 ```bash
