@@ -48,6 +48,8 @@ Reddit data comes from their public JSON API — `reddit.com/search.json?q=...&t
 
 ## How to steal it
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Silicon-Valli/sentimentcapture)
+
 ### Fork and deploy in 5 minutes
 
 ```bash
