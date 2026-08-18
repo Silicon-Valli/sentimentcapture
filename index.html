@@ -988,11 +988,24 @@
   // ── Reddit fetch ──
   async function redditFetch(url) {
     try {
-      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const resp = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'SentimentCapture/1.0 (testimonial finder)'
+        }
+      });
       if (!resp.ok) return [];
       const data = await resp.json();
       return (data.data?.children || []).map(c => c.data);
     } catch { return []; }
+  }
+
+  // Fetch with one automatic retry after 800ms if result is empty
+  async function redditFetchWithRetry(url) {
+    const r1 = await redditFetch(url);
+    if (r1.length > 0) return r1;
+    await new Promise(res => setTimeout(res, 800));
+    return redditFetch(url);
   }
 
   function normalizeComment(c) {
@@ -1146,34 +1159,35 @@
       const seen = new Set();
       let rawComments = [];
 
-      if (citySubs.length > 0) {
-        const fetches = citySubs.map(sub =>
-          redditFetch(`https://www.reddit.com/r/${sub}/search.json?q=${qBizOnly}&restrict_sr=1&sort=new&limit=100&type=comment`)
-        );
-        const results = await Promise.all(fetches);
-        results.forEach(items => items.forEach(c => {
-          if (c.id && !seen.has(c.id)) { seen.add(c.id); rawComments.push(c); }
-        }));
-      }
-
-      if (rawComments.length < 10) {
-        const foodSubs = ['food', 'FoodPorn', 'restaurants', 'eats'];
-        const fetches = foodSubs.map(sub =>
-          redditFetch(`https://www.reddit.com/r/${sub}/search.json?q=${q}&restrict_sr=1&sort=new&limit=50&type=comment`)
-        );
-        const results = await Promise.all(fetches);
-        results.forEach(items => items.forEach(c => {
-          if (c.id && !seen.has(c.id)) { seen.add(c.id); rawComments.push(c); }
-        }));
-      }
-
-      if (rawComments.length < 5) {
-        const globalComments = await redditFetch(
-          `https://www.reddit.com/search.json?q=${q}&sort=new&limit=100&type=comment`
-        );
-        globalComments.forEach(c => {
+      function addUnique(items) {
+        items.forEach(c => {
           if (c.id && !seen.has(c.id)) { seen.add(c.id); rawComments.push(c); }
         });
+      }
+
+      // Pass 1: global search first — most reliable, with auto-retry
+      const globalRelevance = await redditFetchWithRetry(
+        `https://www.reddit.com/search.json?q=${q}&sort=relevance&limit=100&type=comment`
+      );
+      addUnique(globalRelevance);
+
+      // Pass 2: global search by new (different results)
+      if (rawComments.length < 15) {
+        const globalNew = await redditFetch(
+          `https://www.reddit.com/search.json?q=${q}&sort=new&limit=100&type=comment`
+        );
+        addUnique(globalNew);
+      }
+
+      // Pass 3: city subreddits — sequential to avoid rate limiting
+      if (rawComments.length < 10 && citySubs.length > 0) {
+        for (const sub of citySubs.slice(0, 2)) {
+          const items = await redditFetch(
+            `https://www.reddit.com/r/${sub}/search.json?q=${qBizOnly}&restrict_sr=1&sort=relevance&limit=50&type=comment`
+          );
+          addUnique(items);
+          if (rawComments.length >= 20) break;
+        }
       }
 
       const normalized = rawComments
